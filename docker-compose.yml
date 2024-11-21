@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  app:
+    image: tbelbek/video-transcription-app:latest
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./import/uploads:/app/import/uploads
+      - ./import/audio:/app/import/audio
+      - ./import/transcriptions:/app/import/transcriptions
+      - ./import/summaries:/app/import/summaries
+      - ./transcriptions.db:/app/transcriptions.db
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped

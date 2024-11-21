@@ -2,18 +2,75 @@
 <html>
 <head>
     <title>Transcription Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #6c757d;
+            border-radius: 5px;
+            padding: 30px;
+            text-align: center;
+            color: #6c757d;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .drop-zone.dragover {
+            background-color: #e9ecef;
+            border-color: #495057;
+            color: #495057;
+        }
+    </style>
 </head>
-<body>
-    <h1>Transcription Tool</h1>
-    {% if error %}
-        <p style="color:red;">{{ error }}</p>
-    {% endif %}
-    <form method="post" enctype="multipart/form-data">
-        <label for="file">Video File:</label>
-        <input type="file" name="file" id="file" required><br><br>
-        <label for="threshold">Silence Threshold (s):</label>
-        <input type="number" step="0.1" name="threshold" id="threshold" value="1.0" required><br><br>
-        <button type="submit">Start Transcription</button>
-    </form>
+<body class="bg-light">
+    <div class="container mt-5">
+        <h1 class="mb-4 text-center">Transcription Tool</h1>
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+        <form method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="file" class="form-label">Video File:</label>
+                <div class="drop-zone" id="drop-zone">
+                    Drag and drop a video file here or click to select
+                    <input type="file" name="file" id="file" class="form-control d-none" required>
+                </div>
+            </div>
+            <div class="mb-3">
+                <input type="number" step="0.1" name="threshold" id="threshold" class="form-control" value="1.0" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Start Transcription</button>
+        </form>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file');
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                dropZone.textContent = e.dataTransfer.files[0].name;
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) {
+                dropZone.textContent = fileInput.files[0].name;
+            }
+        });
+    </script>
 </body>
 </html>
