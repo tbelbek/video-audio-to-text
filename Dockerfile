@@ -5,6 +5,12 @@ FROM python:3.9-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# Set the working directory
+WORKDIR /app
+
+# Copy the requirements file first
+COPY requirements.txt .
+
 # Install system dependencies, install Python packages, and clean up to reduce image size
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -18,9 +24,6 @@ RUN apt-get update && \
     apt-get purge -y --auto-remove build-essential libssl-dev libffi-dev libpq-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# Set the working directory
-WORKDIR /app
 
 # Copy the application code
 COPY . .

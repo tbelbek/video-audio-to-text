@@ -1,5 +1,5 @@
 Flask
 python-dotenv
 openai
-whisper
+openai-whisper
 ffmpeg-python

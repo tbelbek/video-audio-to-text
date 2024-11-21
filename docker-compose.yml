@@ -3,8 +3,6 @@ version: '3.8'
 services:
   app:
     image: tbelbek/video-transcription-app:latest
-    ports:
-      - "5001:5001"
     volumes:
       - ./import/uploads:/app/import/uploads
       - ./import/audio:/app/import/audio
