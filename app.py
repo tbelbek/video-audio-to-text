@@ -10,8 +10,15 @@ import ffmpeg
 import openai
 import whisper
 from dotenv import load_dotenv  # Import dotenv
-from flask import (Flask, Response, redirect, render_template, request,
-                   send_from_directory, url_for)
+from flask import (
+    Flask,
+    Response,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 
 # Determine the script's directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -36,7 +43,8 @@ os.makedirs(SUMMARIES_FOLDER, exist_ok=True)
 # Initialize SQLite database
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("""
+cursor.execute(
+    """
     CREATE TABLE IF NOT EXISTS transcriptions (
         id TEXT PRIMARY KEY,
         filename TEXT UNIQUE,
@@ -44,11 +52,12 @@ cursor.execute("""
         transcription TEXT,
         summary TEXT
     )
-""")
+"""
+)
 conn.commit()
 
 # Set OpenAI API key from environment variable
-openai.api_key = os.getenv('OPENAI_API_KEY')
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize Whisper model
 print("Loading Whisper model...")
@@ -56,14 +65,15 @@ model = whisper.load_model("base")
 print("Model loaded.")
 
 # Supported video extensions
-video_extensions = ('.mkv', '.mp4', '.avi', '.mov', '.flv', '.wmv')
+video_extensions = (".mkv", ".mp4", ".avi", ".mov", ".flv", ".wmv")
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['TRANSCRIPTIONS_FOLDER'] = TRANSCRIPTIONS_FOLDER
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["TRANSCRIPTIONS_FOLDER"] = TRANSCRIPTIONS_FOLDER
 
 # Initialize transcription queue
 transcription_queue = queue.Queue()
+
 
 def transcribe_video(video_path):
     # Generate a unique identifier
@@ -86,29 +96,37 @@ def transcribe_video(video_path):
 
     return transcript_path, unique_id, os.path.basename(video_path)
 
+
 def summarize_transcription(transcription):
     try:
         response = openai.ChatCompletion.create(
             model="mini",
             messages=[
-                {"role": "system", "content": "I would like for you to assume the role of a court clerk"},
-                {"role": "user", "content": f"""Generate a concise summary of the text below.
+                {
+                    "role": "system",
+                    "content": "I would like for you to assume the role of a court clerk",
+                },
+                {
+                    "role": "user",
+                    "content": f"""Generate a concise summary of the text below.
 Text: {transcription}
 
 Add a title to the summary.
 
 Make sure your summary has useful and true information about the main points of the topic.
 Begin with a short introduction explaining the topic. If you can, use bullet points to list important details,
-and finish your summary with a concluding sentence."""},
+and finish your summary with a concluding sentence.""",
+                },
             ],
             max_tokens=40,
             temperature=0.3,
         )
-        summary = response.choices[0].message['content'].strip()
+        summary = response.choices[0].message["content"].strip()
         return summary
     except Exception as e:
         print(f"Error during summarization: {e}")
         return "No Summary"
+
 
 def worker():
     while True:
@@ -118,7 +136,9 @@ def worker():
         try:
             filename = os.path.basename(video_path)
             # Check if already transcribed
-            cursor.execute("SELECT id FROM transcriptions WHERE filename = ?", (filename,))
+            cursor.execute(
+                "SELECT id FROM transcriptions WHERE filename = ?", (filename,)
+            )
             if cursor.fetchone():
                 print(f"Skipping already transcribed video: {filename}")
                 transcription_queue.task_done()
@@ -127,25 +147,28 @@ def worker():
             print(f"Processing video: {filename}")
 
             transcript_path, unique_id, original_filename = transcribe_video(video_path)
-            with open(transcript_path, 'r', encoding='utf-8') as f:
+            with open(transcript_path, "r", encoding="utf-8") as f:
                 transcription = f.read()
 
             print("Summarizing transcription...")
             summary = summarize_transcription(transcription)
             summary_filename = f"summary_{unique_id}.txt"
             summary_path = os.path.join(SUMMARIES_FOLDER, summary_filename)
-            with open(summary_path, 'w', encoding='utf-8') as f:
+            with open(summary_path, "w", encoding="utf-8") as f:
                 f.write(summary)
             print("Summary created.")
 
             # Extract title from summary
-            title = summary.split('\n')[0] if summary else "No Title"
+            title = summary.split("\n")[0] if summary else "No Title"
 
             # Insert into SQLite database
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO transcriptions (id, filename, title, transcription, summary)
                 VALUES (?, ?, ?, ?, ?)
-            """, (unique_id, original_filename, title, transcription, summary))
+            """,
+                (unique_id, original_filename, title, transcription, summary),
+            )
             conn.commit()
             print("Data saved to database.")
 
@@ -161,6 +184,7 @@ def worker():
                 print("Temporary audio file removed.\n")
             transcription_queue.task_done()
 
+
 def batch_transcribe():
     while True:
         for filename in os.listdir(IMPORT_FOLDER):
@@ -171,10 +195,11 @@ def batch_transcribe():
         # Wait for 5 minutes before next check
         time.sleep(300)
 
-@app.route('/', methods=['GET', 'POST'])
+
+@app.route("/", methods=["GET", "POST"])
 def index():
-    if request.method == 'POST':
-        file = request.files.get('file')
+    if request.method == "POST":
+        file = request.files.get("file")
         if file:
             # Generate a unique filename for the uploaded file
             unique_id = uuid.uuid4().hex
@@ -187,17 +212,22 @@ def index():
             transcription_queue.put(filepath)
             print(f"Uploaded and added to queue: {unique_filename}")
 
-            return redirect(url_for('download_file', filename=unique_filename))
-    return render_template('index.html')
+            return redirect(url_for("download_file", filename=unique_filename))
+    return render_template("index.html")
 
-@app.route('/transcriptions/<filename>')
+
+@app.route("/transcriptions/<filename>")
 def download_file(filename):
     return send_from_directory(TRANSCRIPTIONS_FOLDER, filename, as_attachment=True)
 
+
 def get_transcriptions():
-    cursor.execute("SELECT filename, title, transcription, summary FROM transcriptions ORDER BY ROWID DESC")
+    cursor.execute(
+        "SELECT filename, title, transcription, summary FROM transcriptions ORDER BY ROWID DESC"
+    )
     rows = cursor.fetchall()
     return rows
+
 
 def generate_rss(transcriptions):
     rss_items = ""
@@ -221,13 +251,15 @@ def generate_rss(transcriptions):
     </rss>"""
     return rss_feed
 
-@app.route('/rss')
+
+@app.route("/rss")
 def rss():
     transcriptions = get_transcriptions()
     rss_feed = generate_rss(transcriptions)
-    return Response(rss_feed, mimetype='application/rss+xml')
+    return Response(rss_feed, mimetype="application/rss+xml")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Start worker thread
     worker_thread = threading.Thread(target=worker, daemon=True)
     worker_thread.start()
@@ -237,4 +269,4 @@ if __name__ == '__main__':
     batch_thread.start()
 
     # Run Flask app
-    app.run(debug=True, port=5001)
+    app.run(host="0.0.0.0", port=5001)
