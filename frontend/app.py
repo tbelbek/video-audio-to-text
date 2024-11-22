@@ -185,12 +185,65 @@ def get_transcriptions():
     rows = cursor.fetchall()
     return rows
 
+@app.route("/remove_transcription", methods=["POST"])
+def remove_transcription():
+    transcription_id = request.form.get("transcription_id")
+    if not transcription_id:
+        flash("No transcription ID provided.", "danger")
+        return redirect(url_for("index"))
+    
+    try:
+        # Fetch the transcription details from the database
+        cursor.execute(
+            "SELECT filename, status FROM transcriptions WHERE id = ?",
+            (transcription_id,)
+        )
+        result = cursor.fetchone()
+        if not result:
+            flash("Transcription not found.", "danger")
+            return redirect(url_for("index"))
+        
+        filename, status = result
+        
+        # Prevent removal if transcription is still processing
+        if status == "processing":
+            flash("Cannot remove a transcription that is still processing.", "warning")
+            return redirect(url_for("index"))
+        
+        # Begin transaction
+        cursor.execute(
+            "DELETE FROM transcriptions WHERE id = ?",
+            (transcription_id,)
+        )
+        conn.commit()
+        
+        # Remove the uploaded file from the server
+        file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logging.info(f"Removed file: {filename}")
+        
+        # Optionally, remove associated transcription files if stored separately
+        # For example, if transcription and summary are saved as separate files:
+        # transcription_file = os.path.join(app.config["TRANSCRIPTIONS_FOLDER"], f"{filename}_transcription.txt")
+        # summary_file = os.path.join(app.config["TRANSCRIPTIONS_FOLDER"], f"{filename}_summary.txt")
+        # for path in [transcription_file, summary_file]:
+        #     if os.path.exists(path):
+        #         os.remove(path)
+        #         logging.info(f"Removed transcription file: {path}")
+        
+        flash(f"Transcription '{filename}' has been removed successfully.", "success")
+    except Exception as e:
+        logging.error(f"Error removing transcription {transcription_id}: {e}")
+        flash("An error occurred while trying to remove the transcription.", "danger")
+    
+    return redirect(url_for("index"))
 
 def generate_rss(transcriptions):
     rss_items = ""
     for filename, title, transcription, summary, status in transcriptions:
         if status == "completed":
-            link = f"https://yourdomain.com/transcriptions/{filename}"  # Replace with your domain
+            link = f"https://transcribe.tbelbek.com/transcriptions/{filename}"
             rss_items += f"""
             <item>
                 <title>{title}</title>
@@ -203,7 +256,7 @@ def generate_rss(transcriptions):
     <rss version="2.0">
         <channel>
             <title>Video Transcriptions RSS Feed</title>
-            <link>https://yourdomain.com/</link>  <!-- Replace with your domain -->
+            <link>https://transcribe.tbelbek.com//</link>  <!-- Replace with your domain -->
             <description>RSS feed of video transcriptions and summaries.</description>
             {rss_items}
         </channel>

@@ -52,24 +52,24 @@ logging.basicConfig(
 # Initialize SQLite database
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
+logging.info(f"OpenAI key {os.environ.get('OPENAI_API_KEY')}")
 
 # Set OpenAI API key from environment variable
 client = OpenAI(
     api_key=os.environ.get("OPENAI_API_KEY"),  # This is the default and can be omitted
 )
 
-
-
 device = "cuda" if torch.cuda.is_available() else "cpu"
 compute_type = "float16" if device == "cuda" else "float32"
+model = "large-v3-turbo"
 
 # Initialize Faster Whisper model
 logging.info("Loading Faster Whisper model...")
 model = WhisperModel(
-    "large-v3", device=device, compute_type=compute_type, download_root=MODEL_CACHE_DIR
+    model, device=device, compute_type=compute_type, download_root=MODEL_CACHE_DIR
 )
 logging.info(f"Model loaded on {device} with compute_type={compute_type}.")
-logging.info("Model loaded.")
+logging.info(f"Model {model} loaded.")
 
 # Supported video and audio extensions
 video_extensions = (".mkv", ".mp4", ".avi", ".mov", ".flv", ".wmv")
@@ -116,8 +116,13 @@ def summarize_transcription(transcription):
     """
     Generates a summary of the transcription using OpenAI's GPT model.
     """
+    if not transcription:
+        logging.warning("Empty transcription received for summarization.")
+        return "No Summary"
+
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",  # Corrected model name
             messages=[
                 {
                     "role": "system",
@@ -130,18 +135,16 @@ Text: {transcription}
 
 Add a title to the summary.
 
-Make sure your summary has useful and true information about the main points of the topic.
-Begin with a short introduction explaining the topic. If you can, use bullet points to list important details, and finish your summary with a concluding sentence.""",
+Make sure your summary has useful and true information about the main points of the topic. Begin with a short introduction explaining the topic. If you can, use bullet points to list important details, and finish your summary with a concluding sentence.""",
                 },
             ],
-            max_tokens=150,  # Increased tokens for a more detailed summary
-            temperature=0.3,
-            model="gpt-4o-mini",
+            max_tokens=400,  # Adjust as needed
+            temperature=0.3,  # Adjust for variability in responses
         )
         summary = response.choices[0].message["content"].strip()
         return summary
     except Exception as e:
-        logging.error(f"Error during summarization: {e}")
+        logging.exception("Error during summarization:")
         return "No Summary"
 
 
@@ -266,11 +269,41 @@ def main():
             # No pending transcriptions found
             time.sleep(5)  # Wait before checking again
 
+def reset_processing_transcriptions(cursor, conn):
+    """
+    Resets any transcriptions marked as 'processing' to 'pending' to ensure they are reprocessed.
+    """
+    try:
+        # Fetch all transcriptions with status 'processing'
+        cursor.execute("SELECT id, filename FROM transcriptions WHERE status = 'processing'")
+        processing_transcriptions = cursor.fetchall()
+
+        if processing_transcriptions:
+            logging.info(f"Found {len(processing_transcriptions)} transcription(s) in 'processing' state. Resetting to 'pending'.")
+            for transcription in processing_transcriptions:
+                transcription_id, filename = transcription
+                cursor.execute("UPDATE transcriptions SET status = 'pending' WHERE id = ?", (transcription_id,))
+                logging.info(f"Resetting transcription ID: {transcription_id}, Filename: {filename} to 'pending'.")
+            conn.commit()
+            logging.info("All 'processing' transcriptions have been reset to 'pending'.")
+        else:
+            logging.info("No transcriptions found in 'processing' state.")
+    except Exception as e:
+        logging.error(f"Error resetting 'processing' transcriptions: {e}")
 
 if __name__ == "__main__":
     NUM_WORKERS = 2  # Maximum number of concurrent workers
 
     logging.info(f"Starting transcription service with max {NUM_WORKERS} workers.")
+
+    # Initialize database connection
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    DB_PATH = os.path.join(script_dir, "import", "transcriptions.db")
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+
+    # Reset any transcriptions left in 'processing' state
+    reset_processing_transcriptions(cursor, conn)
 
     # Start the main loop in a separate thread to keep the main thread free
     main_thread = threading.Thread(target=main, daemon=True)
