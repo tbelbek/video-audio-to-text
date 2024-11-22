@@ -11,9 +11,7 @@ networks:
 services:
   frontend:
     image: docker.io/tbelbek/video-transcription-frontend:latest
-    container_name: frontend_app
-    ports:
-      - "5001:5001"
+    container_name: video-transcription-frontend
     volumes:
       - ./import:/app/import
     environment:
@@ -24,7 +22,7 @@ services:
 
   backend:
     image: docker.io/tbelbek/video-transcription-backend:latest
-    container_name: transcription_worker
+    container_name: video-transcription-backend
     volumes:
       - ./model_cache:/model_cache/.cache
       - ./import:/app/import
@@ -35,6 +33,6 @@ services:
       - proxy
     depends_on:
       - frontend
-      
+
   # Optional: SQLite Database Service (if you prefer a separate DB service)
   # Not necessary since both frontend and backend access the same SQLite DB via shared volume

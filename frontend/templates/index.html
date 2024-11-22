@@ -113,7 +113,7 @@
                         <tbody>
                             {% for transcription in transcriptions %}
                                 <tr>
-                                    <td>{{ transcription[1] }}</td>
+                                    <td>{{ transcription[1]|truncate(150, True, '...') }}</td>
                                     <td>
                                         {% if transcription[2] == 'completed' %}
                                             <span class="badge bg-success"><i class="fas fa-check-circle"></i> Completed</span>
