@@ -141,7 +141,7 @@ def summarize_transcription(transcription):
 
                     Add a title to the summary.
 
-                    Make sure your summary has useful and true information about the main points of the topic. Begin with a short introduction explaining the topic. If you can, use bullet points to list important details, and finish your summary with a concluding sentence.""",
+                    Make sure your summary has useful and true information about the main points of the topic. Begin with a short introduction explaining the topic. If you can, use bullet points to list important details, and finish your summary with a concluding sentence. Return the summary in an html article format.Remove all markdown content.""",
                 },
             ],
             max_tokens=400,  # Adjust as needed
