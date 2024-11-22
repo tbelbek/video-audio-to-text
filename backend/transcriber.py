@@ -18,7 +18,7 @@ from openai import OpenAI
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Load environment variables
-dotenv_path = os.path.join(script_dir, "import", ".env")  # Removed leading '/'
+dotenv_path = os.path.join(script_dir, "..", "import", ".env")
 load_dotenv(dotenv_path)
 
 # Define paths inside the 'import' folder
@@ -28,7 +28,7 @@ AUDIO_FOLDER = os.path.join(IMPORT_FOLDER, "audio")
 TRANSCRIPTIONS_FOLDER = os.path.join(IMPORT_FOLDER, "transcriptions")
 SUMMARIES_FOLDER = os.path.join(IMPORT_FOLDER, "summaries")
 DB_PATH = os.path.join(IMPORT_FOLDER, "transcriptions.db")
-MODEL_CACHE_DIR = os.getenv(IMPORT_FOLDER, "model_cache/.cache")  # Corrected getenv usage
+MODEL_CACHE_DIR = os.getenv(IMPORT_FOLDER, "model_cache")  # Corrected getenv usage
 LOGS_FOLDER = os.path.join(IMPORT_FOLDER, "logs")
 LOG_FILE = os.path.join(LOGS_FOLDER, "transcriber.log")
 
@@ -52,7 +52,13 @@ logging.basicConfig(
 # Initialize SQLite database
 conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
-logging.info(f"OpenAI key {os.environ.get('OPENAI_API_KEY')}")
+
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if not openai_api_key:
+    logging.error("OPENAI_API_KEY not found in environment variables.")
+    sys.exit(1)
+
+client = OpenAI(api_key=openai_api_key)
 
 # Set OpenAI API key from environment variable
 client = OpenAI(
@@ -121,7 +127,7 @@ def summarize_transcription(transcription):
         return "No Summary"
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4o-mini",  # Corrected model name
             messages=[
                 {
@@ -131,17 +137,17 @@ def summarize_transcription(transcription):
                 {
                     "role": "user",
                     "content": f"""Generate a concise summary of the text below.
-Text: {transcription}
+                    Text: {transcription}
 
-Add a title to the summary.
+                    Add a title to the summary.
 
-Make sure your summary has useful and true information about the main points of the topic. Begin with a short introduction explaining the topic. If you can, use bullet points to list important details, and finish your summary with a concluding sentence.""",
+                    Make sure your summary has useful and true information about the main points of the topic. Begin with a short introduction explaining the topic. If you can, use bullet points to list important details, and finish your summary with a concluding sentence.""",
                 },
             ],
             max_tokens=400,  # Adjust as needed
             temperature=0.3,  # Adjust for variability in responses
         )
-        summary = response.choices[0].message["content"].strip()
+        summary = response.choices[0].message.content.strip()
         return summary
     except Exception as e:
         logging.exception("Error during summarization:")

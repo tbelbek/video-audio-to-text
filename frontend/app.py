@@ -142,27 +142,35 @@ def index():
     return render_template("index.html", transcriptions=transcriptions)
 
 
+
 @app.route("/transcriptions/<filename>")
 def download_file(filename):
     try:
-        # Query the database for the transcription with the given filename
+        # Query the database for the transcription, summary, and title with the given filename
         cursor.execute(
-            "SELECT transcription, title FROM transcriptions WHERE filename = ?",
+            "SELECT transcription, summary, title FROM transcriptions WHERE filename = ?",
             (filename,)
         )
         result = cursor.fetchone()
         
         if result and result[0]:
-            transcription_content, title = result
-            # If 'title' exists, use it as part of the download filename
-            download_filename = f"{title if title else filename}_transcription.txt"
+            transcription_content, summary_content, title = result
+            # Use 'title' in the download filename if it exists
+            download_filename = f"{title if title else filename}_transcription_summary.txt"
             
-            # Create a BytesIO object from the transcription content
+            # Format the content to include title, transcription, and summary
+            file_content = f"Title: {title if title else 'No Title'}\n\n"
+            file_content += "Transcription:\n"
+            file_content += f"{transcription_content}\n\n"
+            file_content += "Summary:\n"
+            file_content += f"{summary_content}"
+            
+            # Create a BytesIO object from the formatted content
             buffer = io.BytesIO()
-            buffer.write(transcription_content.encode('utf-8'))
+            buffer.write(file_content.encode('utf-8'))
             buffer.seek(0)
             
-            # Send the transcription as a downloadable file
+            # Send the content as a downloadable file
             return send_file(
                 buffer,
                 as_attachment=True,
