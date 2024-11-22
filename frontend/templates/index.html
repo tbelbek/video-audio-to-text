@@ -1,0 +1,227 @@
+<!-- templates/index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video Transcription</title>
+    <!-- Include Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Include Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .table th, .table td {
+            vertical-align: middle;
+        }
+        /* Drag and Drop Styles */
+        #drop-area {
+            border: 2px dashed #6c757d;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            transition: background-color 0.3s, border-color 0.3s;
+            background-color: #ffffff;
+            cursor: pointer;
+            position: relative;
+        }
+        #drop-area.hover {
+            background-color: #e9ecef;
+            border-color: #0d6efd;
+        }
+        #drop-area i {
+            font-size: 50px;
+            color: #6c757d;
+            margin-bottom: 15px;
+        }
+        #drop-area p {
+            margin: 0;
+            font-size: 18px;
+            color: #6c757d;
+        }
+        #fileElem {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+        #file-name {
+            margin-top: 15px;
+            font-size: 16px;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <h1 class="mb-3"><i class="fas fa-file-upload"></i> Upload for Transcription</h1>
+            <p class="text-muted">Easily upload your video or audio files and receive transcriptions.</p>
+        </div>
+        
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        <i class="fas fa-info-circle"></i> {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <!-- Upload Card -->
+        <div class="card mb-5">
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div id="drop-area" class="mb-3" tabindex="0">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p id="drop-text">Drag & Drop your file here or click to select a file.</p>
+                        <input type="file" id="fileElem" name="file" accept=".mkv,.mp4,.avi,.mov,.flv,.wmv,.mp3,.wav,.aac,.flac,.ogg,.wma,.m4a" required>
+                        <div id="file-name"></div>
+                    </div>
+                    <div class="form-text mb-3">Supported formats: .mkv, .mp4, .avi, .mov, .flv, .wmv, .mp3, .wav, .aac, .flac, .ogg, .wma, .m4a</div>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Upload</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Transcription List Card -->
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title mb-4"><i class="fas fa-list"></i> Your Transcriptions</h2>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Filename</th>
+                                <th scope="col">Status</th>
+                                <th scope="col" class="text-center">Download</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transcription in transcriptions %}
+                                <tr>
+                                    <td>{{ transcription[1] }}</td>
+                                    <td>
+                                        {% if transcription[2] == 'completed' %}
+                                            <span class="badge bg-success"><i class="fas fa-check-circle"></i> Completed</span>
+                                        {% elif transcription[2] == 'processing' %}
+                                            <span class="badge bg-info"><i class="fas fa-spinner fa-spin"></i> Processing</span>
+                                        {% elif transcription[2] == 'failed' %}
+                                            <span class="badge bg-danger"><i class="fas fa-times-circle"></i> Failed</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ transcription[2].capitalize() }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if transcription[2] == 'completed' %}
+                                            <a href="{{ url_for('download_file', filename=transcription[1]) }}" class="btn btn-sm btn-success"><i class="fas fa-download"></i> Download</a>
+                                        {% else %}
+                                            <button class="btn btn-sm btn-secondary" disabled><i class="fas fa-download"></i> Download</button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            {% if not transcriptions %}
+                                <tr>
+                                    <td colspan="3" class="text-center">No transcriptions available.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Include Bootstrap 5 JS and dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const fileInput = document.getElementById('fileElem');
+        const fileNameDisplay = document.getElementById('file-name');
+        const dropText = document.getElementById('drop-text');
+        const form = document.querySelector('form');
+
+        // Prevent default behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Highlight drop area when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('hover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('hover'), false);
+        });
+
+        // Handle dropped files
+        dropArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                displayFileName(files[0].name);
+            }
+        }
+
+        // Click to open file dialog
+        dropArea.addEventListener('click', () => fileInput.click());
+
+        // Keyboard accessibility
+        dropArea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInput.click();
+            }
+        });
+
+        // Display the selected file name
+        function displayFileName(name) {
+            fileNameDisplay.textContent = `Selected file: ${name}`;
+            dropText.style.display = 'none'; // Hide the initial prompt
+        }
+
+        // Clear the file name display when input is cleared
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                displayFileName(fileInput.files[0].name);
+            } else {
+                fileNameDisplay.textContent = '';
+                dropText.style.display = 'block';
+            }
+        });
+
+        // Form submission validation
+        form.addEventListener('submit', (e) => {
+            if (fileInput.files.length === 0) {
+                e.preventDefault();
+                alert('Please select a file to upload.');
+                dropArea.focus();
+            }
+        });
+    </script>
+</body>
+</html>

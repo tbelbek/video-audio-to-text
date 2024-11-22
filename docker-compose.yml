@@ -1,3 +1,5 @@
+# docker-compose.yml
+
 version: '3.8'
 
 networks:
@@ -5,17 +7,34 @@ networks:
     external: true
     name: proxy_network
 
+
 services:
-  app:
-    image: tbelbek/video-transcription-app:latest
+  frontend:
+    image: docker.io/tbelbek/video-transcription-frontend:latest
+    container_name: frontend_app
+    ports:
+      - "5001:5001"
     volumes:
-      - ./import/uploads:/app/import/uploads
-      - ./import/audio:/app/import/audio
-      - ./import/transcriptions:/app/import/transcriptions
-      - ./import/summaries:/app/import/summaries
-      - ./transcriptions.db:/app/transcriptions.db
+      - ./import:/app/import
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    restart: unless-stopped
+      - MODEL_CACHE_DIR=/model_cache/.cache
     networks:
       - proxy
+
+  backend:
+    image: docker.io/tbelbek/video-transcription-backend:latest
+    container_name: transcription_worker
+    volumes:
+      - ./model_cache:/model_cache/.cache
+      - ./import:/app/import
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MODEL_CACHE_DIR=/model_cache/.cache
+    networks:
+      - proxy
+    depends_on:
+      - frontend
+      
+  # Optional: SQLite Database Service (if you prefer a separate DB service)
+  # Not necessary since both frontend and backend access the same SQLite DB via shared volume

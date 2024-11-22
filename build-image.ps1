@@ -1,14 +1,15 @@
-# Build the Docker image
-docker build -t video-transcription-app .
+# build-image.ps1
 
-# Tag the Docker image
-docker tag video-transcription-app tbelbek/video-transcription-app:latest
+# Build and push Frontend image
+docker build -t video-transcription-frontend ./frontend
+docker tag video-transcription-frontend tbelbek/video-transcription-frontend:latest
+docker push tbelbek/video-transcription-frontend:latest
 
-# Push the Docker image to the registry
-docker push tbelbek/video-transcription-app:latest
+# Build and push Backend image
+docker build -t video-transcription-backend ./backend
+docker tag video-transcription-backend tbelbek/video-transcription-backend:latest
+docker push tbelbek/video-transcription-backend:latest
 
-# Pull the latest images defined in the docker-compose.yml file
+# Deploy using Docker Compose
 docker-compose pull
-
-# Start the services defined in the docker-compose.yml file in detached mode
 docker-compose up -d

@@ -3,4 +3,5 @@
 /uploads
 /__pycache__
 /.env
-import/*.db
+import/*
+model_cache/*
