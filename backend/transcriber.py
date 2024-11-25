@@ -2,6 +2,7 @@
 
 import logging
 import os
+import shutil
 import sqlite3
 import sys
 import threading
@@ -31,6 +32,7 @@ DB_PATH = os.path.join(IMPORT_FOLDER, "transcriptions.db")
 MODEL_CACHE_DIR = os.getenv(IMPORT_FOLDER, "model_cache")  # Corrected getenv usage
 LOGS_FOLDER = os.path.join(IMPORT_FOLDER, "logs")
 LOG_FILE = os.path.join(LOGS_FOLDER, "transcriber.log")
+POLLING_FOLDER = os.path.join(script_dir, "import", "external")
 
 # Create necessary folders if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Ensure 'uploads' directory exists
@@ -88,6 +90,12 @@ worker_semaphore = threading.Semaphore(max_workers)
 # Lock for thread-safe database access
 db_lock = threading.Lock()
 
+def is_supported_file(filename):
+    """
+    Checks if the file has a supported video or audio extension.
+    """
+    _, ext = os.path.splitext(filename)
+    return ext.lower() in video_extensions or ext.lower() in audio_extensions
 
 def transcribe_video(video_path):
     """
@@ -297,6 +305,65 @@ def reset_processing_transcriptions(cursor, conn):
     except Exception as e:
         logging.error(f"Error resetting 'processing' transcriptions: {e}")
 
+def poll_folder_for_new_files():
+    """
+    Polls the specified folder for new files and processes them.
+    """
+    processed_files = set()
+
+    while True:
+        try:
+            # List all files in the polling folder
+            files = set(os.listdir(POLLING_FOLDER))
+            
+            # Determine new files by subtracting already processed files
+            new_files = files - processed_files
+            
+            for filename in new_files:
+                file_path = os.path.join(POLLING_FOLDER, filename)
+                if os.path.isfile(file_path) and is_supported_file(filename):
+                    logging.info(f"New file detected: {filename}")
+                    # Process the new file (e.g., add to transcription queue)
+                    process_new_file(file_path)
+                    # Mark the file as processed
+                    processed_files.add(filename)
+            
+            # Sleep for a specified interval before polling again
+            time.sleep(900)
+        except Exception as e:
+            logging.error(f"Error while polling folder: {e}")
+
+def process_new_file(file_path):
+    """
+    Processes the new file detected in the polling folder.
+    """
+    try:
+        filename = os.path.basename(file_path)
+        unique_id = uuid.uuid4().hex
+        status = 'pending'
+        
+        # Define the destination path in the import folder
+        destination_path = os.path.join(UPLOAD_FOLDER, filename)
+        
+        # Copy the file to the import folder
+        shutil.copy2(file_path, destination_path)
+        logging.info(f"Copied file to import folder: {destination_path}")
+        
+        # Insert a new record into the transcriptions table
+        cursor.execute(
+            """
+            INSERT INTO transcriptions (id, filename, status)
+            VALUES (?, ?, ?)
+            """,
+            (unique_id, filename, status)
+        )
+        conn.commit()
+        logging.info(f"Added new transcription record for file: {filename}")
+        
+        # Add additional processing logic here if needed
+    except Exception as e:
+        logging.error(f"Error processing new file {file_path}: {e}")
+
 if __name__ == "__main__":
     NUM_WORKERS = 2  # Maximum number of concurrent workers
 
@@ -314,7 +381,12 @@ if __name__ == "__main__":
     # Start the main loop in a separate thread to keep the main thread free
     main_thread = threading.Thread(target=main, daemon=True)
     main_thread.start()
-    logging.info("Main transcription thread started.")
+    logging.info("Main transcription thread started.")    
+    
+    # Start the folder polling worker in a separate thread
+    polling_thread = threading.Thread(target=poll_folder_for_new_files, daemon=True)
+    polling_thread.start()
+    logging.info("Folder polling thread started.")
 
     # Keep the main thread alive
     try:

@@ -26,6 +26,7 @@ services:
     volumes:
       - ./model_cache:/model_cache/.cache
       - ./import:/app/import
+      - C:\Users\tugha\OneDrive\Share:/app/import/external
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - MODEL_CACHE_DIR=/model_cache/.cache
