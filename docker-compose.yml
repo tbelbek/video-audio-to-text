@@ -1,7 +1,4 @@
 # docker-compose.yml
-
-version: '3.8'
-
 networks:
   proxy:
     external: true
